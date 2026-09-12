@@ -65,6 +65,17 @@ def lambda_handler(event, context):
         print("Audio stored in S3:", audio_key)
         print("================================")
 
+        # Create temporary URL for the MP3
+        audio_url = s3.generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": BUCKET_NAME,
+                "Key": audio_key
+            },
+            ExpiresIn=3600
+        )
+
+        # Return result
         return {
             "statusCode": 200,
             "headers": {
@@ -75,7 +86,7 @@ def lambda_handler(event, context):
             "body": json.dumps({
                 "face_count": face_count,
                 "message": speech_text,
-                "audio_file": audio_key
+                "audio_url": audio_url
             })
         }
 
