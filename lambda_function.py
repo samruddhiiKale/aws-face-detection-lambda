@@ -6,8 +6,11 @@ import uuid
 rekognition = boto3.client("rekognition")
 polly = boto3.client("polly")
 s3 = boto3.client("s3")
+sns = boto3.client("sns")
 
 BUCKET_NAME = "samshru"
+
+SNS_TOPIC_ARN = "arn:aws:sns:us-west-1:078682762547:FaceDetectionNotifications"
 
 
 def lambda_handler(event, context):
@@ -32,7 +35,7 @@ def lambda_handler(event, context):
 
         face_count = len(response["FaceDetails"])
 
-        # Create text for Polly
+        # Create speech text
         if face_count == 0:
             speech_text = "No faces were detected in the image."
         elif face_count == 1:
@@ -58,13 +61,6 @@ def lambda_handler(event, context):
             ContentType="audio/mpeg"
         )
 
-        print("================================")
-        print("FACE DETECTION RESULT")
-        print("Number of faces detected:", face_count)
-        print("Speech:", speech_text)
-        print("Audio stored in S3:", audio_key)
-        print("================================")
-
         # Create temporary URL for the MP3
         audio_url = s3.generate_presigned_url(
             "get_object",
@@ -75,7 +71,36 @@ def lambda_handler(event, context):
             ExpiresIn=3600
         )
 
-        # Return result
+        # Send result through SNS
+        sns_message = f"""
+Face Detection Result
+
+Number of faces detected: {face_count}
+
+Message:
+{speech_text}
+
+Listen to the audio result:
+{audio_url}
+
+The audio link is valid for 1 hour.
+"""
+
+        sns.publish(
+            TopicArn=SNS_TOPIC_ARN,
+            Subject="Face Detection Result",
+            Message=sns_message
+        )
+
+        print("================================")
+        print("FACE DETECTION RESULT")
+        print("Number of faces detected:", face_count)
+        print("Speech:", speech_text)
+        print("Audio stored in S3:", audio_key)
+        print("SNS notification sent successfully")
+        print("================================")
+
+        # Return result to HTML
         return {
             "statusCode": 200,
             "headers": {
@@ -91,6 +116,7 @@ def lambda_handler(event, context):
         }
 
     except Exception as e:
+
         print("ERROR:", str(e))
 
         return {
